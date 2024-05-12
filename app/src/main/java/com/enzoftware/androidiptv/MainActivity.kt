@@ -33,7 +33,7 @@ class MainActivity : AppCompatActivity() {
         val client = OkHttpClient()
 
         val request = Request.Builder()
-            .url("http://iptv.liber.pe:4443/playlist.m3u8?auth=eric:optical")
+            .url("https://raw.githubusercontent.com/DZZN-DEV/android_iptv/master/sorted_channels.m3u8")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
