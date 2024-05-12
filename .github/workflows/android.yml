@@ -1,73 +1,45 @@
-name: Build debug apk
+name: Build Android APK
+run-name: ${{ github.event.inputs.repository }}:${{ github.event.inputs.taskName }}
 
 on:
-  [workflow_dispatch]
-
-permissions:
-  contents: read
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Git repository URL"
+        required: true
+        default: "https://github.com/DZZN-DEV/android_iptv"
+      jdkVersion:
+        description: "OpenJDK version to use: 8 / 11 / 17 etc."
+        required: false
+        default: "17"
+      taskName:
+        description: "build.gradle task name: assemble[Flavor]Debug"
+        required: false
+        default: "assembleDebug"
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-latest # Android SDK is built-in in this image
     steps:
-    - name: checkout OsmAnd
-      uses: actions/checkout@v4
-      with:
-        path: android
-    - name: checkout OsmAnd-resources
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-resources
-        path: resources
-    - name: checkout OsmAnd-core
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-core
-        path: core
-    - name: checkout OsmAnd-core-legacy
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-core-legacy
-        path: core-legacy
-    - name: checkout OsmAnd-build
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-build
-        path: build
-    - name: checkout OsmAnd-tools
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-tools
-        path: tools
-    - name: checkout OsmAnd-misc
-      uses: actions/checkout@v4
-      with:
-        repository: osmandapp/OsmAnd-misc
-        path: misc
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: ${{ github.event.inputs.jdkVersion }}
 
-    - name: set up JDK 11
-      uses: actions/setup-java@v4
-      with:
-        java-version: '11'
-        distribution: 'adopt'
+      - name: Clone project
+        run: git clone --recurse-submodules --depth=1 ${{ github.event.inputs.repository }} workspace
 
-    - name: Grant execute permission for gradlew
-      working-directory: ./android
-      run: chmod +x gradlew
-    - name: Patch memory requirements
-      working-directory: ./android
-      run: printf "\norg.gradle.jvmargs=-Xmx2048m -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8\n" >> gradle.properties
-    - name: Build with Gradle
-      working-directory: ./android
-      run: ./gradlew assembleNightlyFreeLegacyFatDebug
-    - name: Rename APK
-      working-directory: ./android
-      run: mv OsmAnd/build/outputs/apk/nightlyFreeLegacyFat/debug/OsmAnd-nightlyFree-legacy-fat-debug.apk OsmAnd/build/outputs/apk/nightlyFreeLegacyFat/debug/OsmAnd-nightlyFree-legacy-fat-debug-$(git log -n 1 --format='%h').apk
-    - name: Archive APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-apk
-        path: android/OsmAnd/build/outputs/apk/*/*/*.apk
-        retention-days: 90
+      - name: Build APK
+        working-directory: ./workspace
+        run: |
+          if [ ! -f "gradlew" ]; then gradle wrapper; fi
+          chmod +x gradlew
+          ./gradlew ${{ github.event.inputs.taskName }} --stacktrace
+
+      - name: Upload the APK artifact with 1 day retention
+        uses: actions/upload-artifact@v4
+        with:
+          path: ./**/*.apk
+          name: apk-archive
+          retention-days: 1
